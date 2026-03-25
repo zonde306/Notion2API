@@ -3,8 +3,8 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*' # 当推送 v1.0, v1.1.0 等 tag 时触发
-  workflow_dispatch: # 允许手动触发
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -20,6 +20,10 @@ jobs:
           - goos: windows
             goarch: amd64
           - goos: windows
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
             goarch: arm64
 
     steps:
@@ -39,16 +43,17 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0 # 关键：modernc.org/sqlite 不需要 CGO
+          CGO_ENABLED: 0
         run: |
           BINARY_NAME=notion2api
-          # 如果是 Windows，添加 .exe 后缀
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            BINARY_NAME=$BINARY_NAME.exe
+            OUTPUT_NAME="${BINARY_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
+          else
+            OUTPUT_NAME="${BINARY_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}"
           fi
           
-          # 编译命令，添加 -s -w 减小体积
-          go build -ldflags="-s -w" -o dist/$BINARY_NAME-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} .
+          # 这里的路径改为 ./cmd/notion2api
+          go build -ldflags="-s -w" -o dist/$OUTPUT_NAME ./cmd/notion2api
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -60,7 +65,7 @@ jobs:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') # 仅在有 tag 时执行发布
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -73,7 +78,5 @@ jobs:
         with:
           files: ./artifacts/*
           generate_release_notes: true
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
